@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Heti órarend</title>
+  <style>
+    /* E-NAPLÓ VILÁGOS TÉMA VÁLTOZÓI */
+    :root {
+      --bg: #f4f6f8;        /* Világos háttér (szürkésfehér) */
+      --card: #ffffff;      /* Fehér kártya/konténer */
+      --text: #333333;      /* Sötét szöveg */
+      --muted: #777777;     /* Halvány (szürke) */
+      --accent: #007bff;    /* Elsődleges kék (mint a legtöbb e-naplóban) */
+      --accent-2: #28a745;  /* Zöld (mentéshez) */
+      --danger: #dc3545;    /* Piros (törléshez) */
+      --border: #dddddd;    /* Világos szegély */
+      --cell: #ffffff;      /* Cella háttér (fehér) */
+      --cell-focus: #f0f8ff; /* Fókusz (nagyon világos kék) */
+      --header-bg: #e9ecef; /* Táblázatfejléc (világosszürke) */
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 2rem; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: var(--bg); /* Egyszerű világos háttér */
+      color: var(--text);
+    }
+    h1 { margin: 0 0 0.75rem; font-size: 1.8rem; color: var(--accent); } /* Kék cím */
+    p { margin: 0 0 1rem; color: var(--muted); }
+    .wrap {
+      max-width: 1100px; margin: 0 auto; background: var(--card);
+      border: 1px solid var(--border); border-radius: 8px; /* Kisebb lekerekítés */
+      padding: 1.5rem; /* Nagyobb belső tér */
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1); /* Világosabb árnyék */
+    }
+    .controls {
+      display: flex; flex-wrap: wrap; gap: 0.75rem; /* Nagyobb rés a gombok között */
+      align-items: center; margin-bottom: 1rem;
+    }
+    /* Általános gomb/select stílus */
+    button, select {
+      background: var(--card); color: var(--text); border: 1px solid var(--border);
+      padding: 0.6rem 1rem; border-radius: 5px; /* Kisebb lekerekítés */
+      cursor: pointer; font-weight: 500;
+      transition: background 0.2s;
+      appearance: none;
+    }
+    button:hover { background: #f0f0f0; } /* Halvány hover */
+    select { padding-right: 2rem; } /* Hely a lenyíló nyílnak */
+
+    /* SAVE gomb (Zöld) */
+    .save { border-color: var(--accent-2); background: var(--accent-2); color: #fff; font-weight: 600; }
+    .save:hover { background: #1e7e34; }
+
+    /* CLEAR gomb (Piros) */
+    .clear { border-color: var(--danger); background: var(--danger); color: #fff; font-weight: 600; }
+    .clear:hover { background: #c82333; }
+
+    /* REDIRECT gomb (Kék) */
+    .redirect { border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 600; }
+    .redirect:hover { background: #0056b3; }
+    
+    .status { margin-left: auto; font-size: 0.9rem; color: var(--muted); }
+    
+    table {
+      width: 100%; border-collapse: collapse; table-layout: fixed; overflow: hidden;
+      border-radius: 8px; border: 1px solid var(--border);
+    }
+    thead th {
+      position: sticky; top: 0; background: var(--header-bg); color: var(--text);
+      padding: 0.75rem 0.6rem; border-bottom: 1px solid var(--border); font-size: 1rem;
+      font-weight: 600; text-align: center;
+    }
+    tbody td, tbody th {
+      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+    }
+    tbody th {
+      text-align: center; /* Óraszám középre */
+      padding: 0.45rem; width: 6ch; color: var(--muted); background: #f8f9fa; /* Nagyon világos szürke */
+      font-weight: 500; font-size: 0.9rem;
+    }
+    tbody td {
+      padding: 0; background: var(--cell);
+    }
+    .cell {
+      width: 100%; min-height: 4rem; /* Nagyobb magasság a celláknak */
+      padding: 0.6rem; border: 0; background: transparent; color: var(--text);
+      font: inherit; outline: none; resize: none; display: block;
+    }
+    .cell:focus { background: var(--cell-focus); }
+    .grid { overflow: auto; max-height: 65vh; border-radius: 8px; }
+    .footer {
+      display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;
+      color: var(--muted); font-size: 0.9rem;
+      border-top: 1px solid var(--border); padding-top: 0.75rem;
+    }
+    .small { font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Heti órarend</h1>
+    <p>Írd be a tanórákat a táblázatba. Az adatok automatikusan mentésre kerülnek a böngészőben.</p>
+
+    <div class="controls">
+      <select id="weekSelect" title="Válassz hetet"></select>
+      <button class="redirect" id="redirectBtn">Osztálynapló</button>
+      <button class="save" id="saveBtn">Mentés</button>
+      <button class="clear" id="clearBtn">Törlés (aktuális hét)</button>
+      <span class="status" id="status">Készen áll.</span>
+    </div>
+
+    <div class="grid">
+      <table id="timetable">
+        <thead>
+          <tr>
+            <th>Óra</th>
+            <th>Hétfő</th>
+            <th>Kedd</th>
+            <th>Szerda</th>
+            <th>Csütörtök</th>
+            <th>Péntek</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+                  </tbody>
+      </table>
+    </div>
+
+    <div class="footer">
+      <span>Tipp: Enter a sor végén, Ctrl+S mentés.</span>
+      <span class="small">Tárolás: böngésző saját mentés (localStorage).</span>
+    </div>
+  </div>
+
+  <script>
+    // Beállítások
+    const LESSONS_PER_DAY = 10; // sorok száma (órák)
+    const DAYS = ["hetfo","kedd","szerda","csutortok","pentek"];
+    const DAY_LABELS = { hetfo: "Hétfő", kedd: "Kedd", szerda: "Szerda", csutortok: "Csütörtök", pentek: "Péntek" };
+
+    // --- CÉL URL ---
+    const REDIRECT_URL = "https://sites.google.com/view/osztlynaplonline/oszt%C3%A1lynapl%C3%B3/napl%C3%B3"; 
+    // -------------------
+
+    // Het azonosító (ISO hét szám) generálása
+    function getISOWeek(date) {
+      const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+      const dayNum = d.getUTCDay() || 7;
+      d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+      const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+      return { year: d.getUTCFullYear(), week: weekNo };
+    }
+
+    // Kulcs a localStorage-hoz
+    function storageKey(year, week) { return `orarend:${year}-W${String(week).padStart(2,"0")}`; }
+
+    // Táblázat felépítése
+    function buildTable() {
+      const tbody = document.getElementById("tbody");
+      tbody.innerHTML = "";
+      for (let i = 1; i <= LESSONS_PER_DAY; i++) {
+        const tr = document.createElement("tr");
+        const th = document.createElement("th");
+        th.textContent = i + ".";
+        tr.appendChild(th);
+        for (const day of DAYS) {
+          const td = document.createElement("td");
+          const ta = document.createElement("textarea");
+          ta.className = "cell";
+          ta.rows = 1;
+          ta.dataset.row = i;
+          ta.dataset.day = day;
+          ta.placeholder = "Tantárgy / terem / tanár";
+          td.appendChild(ta);
+          tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      }
+    }
+
+    // Hetek listája (aktuális környéke: -2..+6 hét)
+    function populateWeekSelect() {
+      const sel = document.getElementById("weekSelect");
+      sel.innerHTML = "";
+      const today = new Date();
+      const base = getISOWeek(today);
+      for (let offset = -2; offset <= 6; offset++) {
+        const d = new Date();
+        d.setDate(today.getDate() + offset * 7);
+        const { year, week } = getISOWeek(d);
+        const opt = document.createElement("option");
+        opt.value = `${year}-W${String(week).padStart(2,"0")}`;
+        const startOfWeek = startDateOfISOWeek(year, week);
+        const endOfWeek = new Date(startOfWeek); endOfWeek.setDate(endOfWeek.getDate() + 4);
+        opt.textContent = `Hét ${String(week).padStart(2,"0")} (${year}) – ${fmtDate(startOfWeek)}–${fmtDate(endOfWeek)}`;
+        if (year === base.year && week === base.week) opt.selected = true;
+        sel.appendChild(opt);
+      }
+    }
+
+    function startDateOfISOWeek(year, week) {
+      const simple = new Date(Date.UTC(year, 0, 1 + (week - 1) * 7));
+      const dow = simple.getUTCDay();
+      const ISOweekStart = simple;
+      if (dow <= 4 && dow > 0) ISOweekStart.setUTCDate(simple.getUTCDate() - dow + 1);
+      else ISOweekStart.setUTCDate(simple.getUTCDate() + 8 - dow);
+      return new Date(ISOweekStart.getUTCFullYear(), ISOweekStart.getUTCMonth(), ISOweekStart.getUTCDate());
+    }
+
+    function fmtDate(d) {
+      return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")}`;
+    }
+
+    // Adatok betöltése/mentése
+    function loadWeek(key) {
+      const data = JSON.parse(localStorage.getItem(key) || "{}");
+      document.querySelectorAll(".cell").forEach(el => {
+        const r = el.dataset.row, day = el.dataset.day;
+        el.value = (data[day]?.[r]) || "";
+      });
+      setStatus("Betöltve: " + keyToHuman(key));
+    }
+
+    function saveWeek(key) {
+      const data = {};
+      for (const day of DAYS) data[day] = {};
+      document.querySelectorAll(".cell").forEach(el => {
+        const r = el.dataset.row, day = el.dataset.day;
+        const val = el.value.trim();
+        data[day][r] = val;
+      });
+      localStorage.setItem(key, JSON.stringify(data));
+      setStatus("Mentve: " + keyToHuman(key));
+    }
+
+    function clearWeek(key) {
+      localStorage.removeItem(key);
+      document.querySelectorAll(".cell").forEach(el => el.value = "");
+      setStatus("Törölve: " + keyToHuman(key));
+    }
+
+    function keyToHuman(key) {
+      const [year, week] = key.replace("orarend:", "").split("-W");
+      return `Hét ${week} (${year})`;
+    }
+
+    function setStatus(msg) {
+      const s = document.getElementById("status");
+      s.textContent = msg;
+      s.style.opacity = 1;
+      clearTimeout(setStatus._t);
+      setStatus._t = setTimeout(() => s.style.opacity = 0.7, 1500);
+    }
+
+    // Automatikus mentés késleltetéssel
+    let autosaveTimer = null;
+    function queueAutosave() {
+      clearTimeout(autosaveTimer);
+      autosaveTimer = setTimeout(() => {
+        const key = "orarend:" + document.getElementById("weekSelect").value;
+        saveWeek(key);
+      }, 600);
+    }
+
+    // Események összekötése
+    function bindEvents() {
+      const sel = document.getElementById("weekSelect");
+      sel.addEventListener("change", () => {
+        const key = "orarend:" + sel.value;
+        loadWeek(key);
+      });
+
+      document.getElementById("saveBtn").addEventListener("click", () => {
+        const key = "orarend:" + sel.value;
+        saveWeek(key);
+      });
+
+      document.getElementById("clearBtn").addEventListener("click", () => {
+        const key = "orarend:" + sel.value;
+        if (confirm("Biztos törlöd az aktuális hét órarendjét?")) clearWeek(key);
+      });
+
+      // --- ÚJ ESEMÉNYKEZELŐ AZ ÁTIRÁNYÍTÓ GOMHOZ ---
+      document.getElementById("redirectBtn").addEventListener("click", () => {
+          // Átirányítás a beállított URL-re
+          window.location.href = REDIRECT_URL;
+      });
+      // -------------------------------------------
+
+      // Cellák: input -> autosave
+      document.querySelectorAll(".cell").forEach(el => {
+        el.addEventListener("input", queueAutosave);
+        el.addEventListener("keydown", (e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+            e.preventDefault();
+            const key = "orarend:" + sel.value;
+            saveWeek(key);
+          }
+        });
+      });
+    }
+
+    // Init
+    (function init(){
+      buildTable();
+      populateWeekSelect();
+      bindEvents();
+      const key = "orarend:" + document.getElementById("weekSelect").value;
+      loadWeek(key);
+    })();
+  </script>
+</body>
+</html>
